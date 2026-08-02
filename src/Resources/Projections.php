@@ -9,13 +9,14 @@ use Captur\Exceptions\CapturException;
 class Projections extends Resource
 {
     /**
+     * @param array<string, mixed> $query
      * @return array<string, mixed>
      *
      * @throws CapturException
      */
-    public function list(): array
+    public function list(array $query = []): array
     {
-        return $this->request('GET', '/projections');
+        return $this->request('GET', '/projections', query: $query);
     }
 
     /**

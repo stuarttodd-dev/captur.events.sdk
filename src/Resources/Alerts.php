@@ -9,13 +9,14 @@ use Captur\Exceptions\CapturException;
 class Alerts extends Resource
 {
     /**
+     * @param array<string, mixed> $query
      * @return array<string, mixed>
      *
      * @throws CapturException
      */
-    public function list(): array
+    public function list(array $query = []): array
     {
-        return $this->request('GET', '/alerts');
+        return $this->request('GET', '/alerts', query: $query);
     }
 
     /**

@@ -92,12 +92,67 @@ $client->events()->list([
     'stream' => 'vehicle:AB12XYZ',
     'from' => '2026-08-01T00:00:00Z',
     'to' => '2026-08-02T00:00:00Z',
-    'limit' => 50,
 ]);
 
 $client->events()->get('01KYY7S1ZGJ1DF8XG4X1RFHQ1S');
 $client->events()->delete('01KYY7S1ZGJ1DF8XG4X1RFHQ1S');
 $client->events()->deleteMany(['01A…', '01B…']);
+```
+
+### Pagination (list events)
+
+Use **either** offset (`page`) **or** cursor (`cursor` / `starting_after`) — not both.
+
+**Offset pagination** (`page` + `limit`):
+
+```php
+$page = 1;
+
+do {
+    $result = $client->events()->list([
+        'type' => 'vehicle.entered',
+        'limit' => 100,
+        'page' => $page,
+    ]);
+
+    foreach ($result['data'] as $event) {
+        // …
+    }
+
+    $hasMore = $result['meta']['has_more'] ?? false;
+    $page++;
+} while ($hasMore);
+```
+
+**Cursor pagination** (preferred for large histories / continuous sync):
+
+```php
+$cursor = null;
+
+do {
+    $query = ['limit' => 100];
+    if ($cursor !== null) {
+        $query['cursor'] = $cursor;
+    }
+
+    $result = $client->events()->list($query);
+
+    foreach ($result['data'] as $event) {
+        // …
+    }
+
+    $hasMore = $result['meta']['has_more'] ?? false;
+    $cursor = $result['meta']['next_cursor'] ?? null;
+} while ($hasMore && $cursor !== null);
+```
+
+Or continue after a known event id:
+
+```php
+$result = $client->events()->list([
+    'limit' => 100,
+    'starting_after' => '01J9X2K8M3N4P5Q6R7S8T9V0W1',
+]);
 ```
 
 ## Event types
@@ -111,11 +166,110 @@ $client->eventTypes()->update('vehicle.entered', [
 $client->eventTypes()->delete('vehicle.entered');
 ```
 
+### Pagination (list event types)
+
+**Offset:**
+
+```php
+$page = 1;
+
+do {
+    $result = $client->eventTypes()->list([
+        'limit' => 50,
+        'page' => $page,
+    ]);
+
+    foreach ($result['data'] as $eventType) {
+        // …
+    }
+
+    $hasMore = $result['meta']['has_more'] ?? false;
+    $page++;
+} while ($hasMore);
+```
+
+**Cursor:**
+
+```php
+$cursor = null;
+
+do {
+    $query = ['limit' => 50];
+    if ($cursor !== null) {
+        $query['cursor'] = $cursor;
+    }
+
+    $result = $client->eventTypes()->list($query);
+
+    foreach ($result['data'] as $eventType) {
+        // …
+    }
+
+    $hasMore = $result['meta']['has_more'] ?? false;
+    $cursor = $result['meta']['next_cursor'] ?? null;
+} while ($hasMore && $cursor !== null);
+```
+
 ## Streams
 
 ```php
 $client->streams()->get('vehicle:AB12XYZ');
 $client->streams()->delete('vehicle:AB12XYZ');
+```
+
+### Pagination (read stream)
+
+Stream reads return events under `events` (not `data`).
+
+**Offset:**
+
+```php
+$page = 1;
+
+do {
+    $result = $client->streams()->get('vehicle:AB12XYZ', [
+        'limit' => 100,
+        'page' => $page,
+    ]);
+
+    foreach ($result['events'] as $event) {
+        // …
+    }
+
+    $hasMore = $result['meta']['has_more'] ?? false;
+    $page++;
+} while ($hasMore);
+```
+
+**Cursor:**
+
+```php
+$cursor = null;
+
+do {
+    $query = ['limit' => 100];
+    if ($cursor !== null) {
+        $query['cursor'] = $cursor;
+    }
+
+    $result = $client->streams()->get('vehicle:AB12XYZ', $query);
+
+    foreach ($result['events'] as $event) {
+        // …
+    }
+
+    $hasMore = $result['meta']['has_more'] ?? false;
+    $cursor = $result['meta']['next_cursor'] ?? null;
+} while ($hasMore && $cursor !== null);
+```
+
+Or continue after a known event id:
+
+```php
+$result = $client->streams()->get('vehicle:AB12XYZ', [
+    'limit' => 100,
+    'starting_after' => '01J9X2K8M3N4P5Q6R7S8T9V0W1',
+]);
 ```
 
 ## Session reports
@@ -129,7 +283,61 @@ $client->reports()->sessions([
 ]);
 ```
 
-## Webhooks, alerts, projections
+### Pagination (session reports)
+
+**Offset:**
+
+```php
+$page = 1;
+
+do {
+    $result = $client->reports()->sessions([
+        'start_type' => 'session.started',
+        'end_type' => 'session.ended',
+        'from' => '2026-08-01T00:00:00Z',
+        'to' => '2026-08-02T00:00:00Z',
+        'limit' => 50,
+        'page' => $page,
+    ]);
+
+    foreach ($result['data'] as $session) {
+        // …
+    }
+
+    $hasMore = $result['meta']['has_more'] ?? false;
+    $page++;
+} while ($hasMore);
+```
+
+**Cursor:**
+
+```php
+$cursor = null;
+
+do {
+    $query = [
+        'start_type' => 'session.started',
+        'end_type' => 'session.ended',
+        'from' => '2026-08-01T00:00:00Z',
+        'to' => '2026-08-02T00:00:00Z',
+        'limit' => 50,
+    ];
+    if ($cursor !== null) {
+        $query['cursor'] = $cursor;
+    }
+
+    $result = $client->reports()->sessions($query);
+
+    foreach ($result['data'] as $session) {
+        // …
+    }
+
+    $hasMore = $result['meta']['has_more'] ?? false;
+    $cursor = $result['meta']['next_cursor'] ?? null;
+} while ($hasMore && $cursor !== null);
+```
+
+## Webhooks
 
 ```php
 $client->webhooks()->create([
@@ -137,11 +345,166 @@ $client->webhooks()->create([
     'event_types' => ['vehicle.entered'],
 ]);
 
-$client->alerts()->list();
-$client->projections()->list();
+$client->webhooks()->list();
+$client->webhooks()->get('wh_…');
+$client->webhooks()->update('wh_…', ['enabled' => false]);
+$client->webhooks()->delete('wh_…');
 ```
 
 Test inbox helpers: `testInbox()`, `upsertTestInbox()`, `deleteTestInbox()`, `sendTestInboxSample()`.
+
+### Pagination (list webhooks)
+
+**Offset:**
+
+```php
+$page = 1;
+
+do {
+    $result = $client->webhooks()->list([
+        'limit' => 50,
+        'page' => $page,
+    ]);
+
+    foreach ($result['data'] as $webhook) {
+        // …
+    }
+
+    $hasMore = $result['meta']['has_more'] ?? false;
+    $page++;
+} while ($hasMore);
+```
+
+**Cursor:**
+
+```php
+$cursor = null;
+
+do {
+    $query = ['limit' => 50];
+    if ($cursor !== null) {
+        $query['cursor'] = $cursor;
+    }
+
+    $result = $client->webhooks()->list($query);
+
+    foreach ($result['data'] as $webhook) {
+        // …
+    }
+
+    $hasMore = $result['meta']['has_more'] ?? false;
+    $cursor = $result['meta']['next_cursor'] ?? null;
+} while ($hasMore && $cursor !== null);
+```
+
+## Alerts
+
+```php
+$client->alerts()->list();
+$client->alerts()->create(['name' => 'High dwell']);
+$client->alerts()->get('al_…');
+$client->alerts()->update('al_…', ['name' => 'Updated']);
+$client->alerts()->delete('al_…');
+```
+
+### Pagination (list alerts)
+
+**Offset:**
+
+```php
+$page = 1;
+
+do {
+    $result = $client->alerts()->list([
+        'limit' => 50,
+        'page' => $page,
+    ]);
+
+    foreach ($result['data'] as $alert) {
+        // …
+    }
+
+    $hasMore = $result['meta']['has_more'] ?? false;
+    $page++;
+} while ($hasMore);
+```
+
+**Cursor:**
+
+```php
+$cursor = null;
+
+do {
+    $query = ['limit' => 50];
+    if ($cursor !== null) {
+        $query['cursor'] = $cursor;
+    }
+
+    $result = $client->alerts()->list($query);
+
+    foreach ($result['data'] as $alert) {
+        // …
+    }
+
+    $hasMore = $result['meta']['has_more'] ?? false;
+    $cursor = $result['meta']['next_cursor'] ?? null;
+} while ($hasMore && $cursor !== null);
+```
+
+## Projections
+
+```php
+$client->projections()->list();
+$client->projections()->create(['name' => 'occupancy']);
+$client->projections()->get('pr_…');
+$client->projections()->update('pr_…', ['name' => 'Updated']);
+$client->projections()->delete('pr_…');
+$client->projections()->replay('pr_…');
+```
+
+### Pagination (list projections)
+
+**Offset:**
+
+```php
+$page = 1;
+
+do {
+    $result = $client->projections()->list([
+        'limit' => 50,
+        'page' => $page,
+    ]);
+
+    foreach ($result['data'] as $projection) {
+        // …
+    }
+
+    $hasMore = $result['meta']['has_more'] ?? false;
+    $page++;
+} while ($hasMore);
+```
+
+**Cursor:**
+
+```php
+$cursor = null;
+
+do {
+    $query = ['limit' => 50];
+    if ($cursor !== null) {
+        $query['cursor'] = $cursor;
+    }
+
+    $result = $client->projections()->list($query);
+
+    foreach ($result['data'] as $projection) {
+        // …
+    }
+
+    $hasMore = $result['meta']['has_more'] ?? false;
+    $cursor = $result['meta']['next_cursor'] ?? null;
+} while ($hasMore && $cursor !== null);
+```
 
 ## Verify webhook signatures
 

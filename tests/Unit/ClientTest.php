@@ -166,7 +166,7 @@ it('covers all event type endpoints', function (): void {
         new Response(200, [], json_encode(['deleted' => true], JSON_THROW_ON_ERROR)),
     ], $history);
 
-    $client->eventTypes()->list();
+    $client->eventTypes()->list(['limit' => 50, 'page' => 2]);
     $client->eventTypes()->create([
         'name' => 'vehicle.entered',
         'description' => 'Vehicle entered a car park',
@@ -176,6 +176,8 @@ it('covers all event type endpoints', function (): void {
     $client->eventTypes()->delete('vehicle.entered');
 
     expect($history[0]['request']->getMethod())->toBe('GET')
+        ->and($history[0]['request']->getUri()->getQuery())->toContain('limit=50')
+        ->and($history[0]['request']->getUri()->getQuery())->toContain('page=2')
         ->and($history[1]['request']->getMethod())->toBe('POST')
         ->and($history[2]['request']->getMethod())->toBe('GET')
         ->and($history[3]['request']->getMethod())->toBe('PATCH')
@@ -191,11 +193,13 @@ it('reads and deletes a stream', function (): void {
         new Response(200, [], json_encode(['deleted' => true], JSON_THROW_ON_ERROR)),
     ], $history);
 
-    $client->streams()->get('vehicle:AB12XYZ');
+    $client->streams()->get('vehicle:AB12XYZ', ['limit' => 100, 'cursor' => 'next']);
     $client->streams()->delete('vehicle:AB12XYZ');
 
     expect((string) $history[0]['request']->getUri())
-        ->toBe('https://captur.events/v1/streams/vehicle%3AAB12XYZ')
+        ->toStartWith('https://captur.events/v1/streams/vehicle%3AAB12XYZ?')
+        ->and($history[0]['request']->getUri()->getQuery())->toContain('limit=100')
+        ->and($history[0]['request']->getUri()->getQuery())->toContain('cursor=next')
         ->and($history[1]['request']->getMethod())->toBe('DELETE');
 });
 
@@ -213,7 +217,7 @@ it('covers all webhook endpoints including test inbox', function (): void {
         new Response(200, [], json_encode(['sent' => true], JSON_THROW_ON_ERROR)),
     ], $history);
 
-    $client->webhooks()->list();
+    $client->webhooks()->list(['cursor' => 'abc']);
     $client->webhooks()->create(['url' => 'https://example.com/hooks/captur']);
     $client->webhooks()->get('wh_1');
     $client->webhooks()->update('wh_1', ['enabled' => false]);
@@ -224,6 +228,7 @@ it('covers all webhook endpoints including test inbox', function (): void {
     $client->webhooks()->sendTestInboxSample();
 
     expect($history)->toHaveCount(9)
+        ->and($history[0]['request']->getUri()->getQuery())->toContain('cursor=abc')
         ->and((string) $history[5]['request']->getUri())
         ->toBe('https://captur.events/v1/webhooks/test-inbox')
         ->and($history[6]['request']->getMethod())->toBe('PUT')
@@ -240,13 +245,14 @@ it('covers all alert endpoints', function (): void {
         new Response(200, [], json_encode(['deleted' => true], JSON_THROW_ON_ERROR)),
     ], $history);
 
-    $client->alerts()->list();
+    $client->alerts()->list(['limit' => 25, 'page' => 1]);
     $client->alerts()->create(['name' => 'High dwell']);
     $client->alerts()->get('al_1');
     $client->alerts()->update('al_1', ['name' => 'Updated']);
     $client->alerts()->delete('al_1');
 
-    expect($history[3]['request']->getMethod())->toBe('PUT')
+    expect($history[0]['request']->getUri()->getQuery())->toContain('limit=25')
+        ->and($history[3]['request']->getMethod())->toBe('PUT')
         ->and((string) $history[2]['request']->getUri())->toBe('https://captur.events/v1/alerts/al_1');
 });
 
@@ -261,14 +267,15 @@ it('covers all projection endpoints including replay', function (): void {
         new Response(200, [], json_encode(['replayed' => true], JSON_THROW_ON_ERROR)),
     ], $history);
 
-    $client->projections()->list();
+    $client->projections()->list(['starting_after' => 'pr_0']);
     $client->projections()->create(['name' => 'occupancy']);
     $client->projections()->get('pr_1');
     $client->projections()->update('pr_1', ['name' => 'Updated']);
     $client->projections()->delete('pr_1');
     $client->projections()->replay('pr_1');
 
-    expect($history[3]['request']->getMethod())->toBe('PATCH')
+    expect($history[0]['request']->getUri()->getQuery())->toContain('starting_after=pr_0')
+        ->and($history[3]['request']->getMethod())->toBe('PATCH')
         ->and((string) $history[5]['request']->getUri())
         ->toBe('https://captur.events/v1/projections/pr_1/replay');
 });
