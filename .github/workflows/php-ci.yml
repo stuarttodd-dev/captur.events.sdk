@@ -1,12 +1,14 @@
 name: PHP
 
 on:
+    push:
+        branches: [main]
     pull_request:
         branches: [main]
 
 jobs:
     build:
-        name: Coding Standards And Tests
+        name: Coding Standards, Tests, and Coverage
         runs-on: ubuntu-latest
 
         steps:
@@ -17,14 +19,14 @@ jobs:
               uses: shivammathur/setup-php@v2
               with:
                   php-version: '8.3'
-                  extensions: mbstring, xml, bcmath
-                  coverage: none
+                  extensions: mbstring, xml, bcmath, pcov
+                  coverage: pcov
 
             - name: Install dependencies
-              run: composer install
+              run: composer install --no-interaction --prefer-dist
 
             - name: Run standards check
               run: composer run standards:check
 
-            - name: Run tests
-              run: composer run tests
+            - name: Run tests with 100% coverage
+              run: composer run test:coverage

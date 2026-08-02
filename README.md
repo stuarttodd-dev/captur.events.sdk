@@ -1,122 +1,217 @@
-# Package Sample Repository
+# captur.events PHP SDK
 
-Welcome to the **Package Sample Repository**! This project aims to help developers by providing a solid foundation for creating and maintaining PHP packages. The goal behind this repository is to simplify technical tests while showcasing your skills in building effective PHP packages.
+Official-style PHP client for the [captur.events](https://captur.events) event ingestion API.
 
-## Features
+**Base URL:** `https://captur.events` · **Default version:** `v1`  
+**Docs:** [Introduction](https://captur.events/docs/introduction) · [OpenAPI](https://captur.events/developers/openapi.json)
 
-- **Docker Support**: This package includes a sample Dockerfile and docker-compose.yml for easy development and testing. Please ensure you have [Docker Desktop](https://www.docker.com/products/docker-desktop) installed to get started.
+## Install
 
-- **Composer Scripts**: Leverage Composer for dependency management. The repository comes with useful Composer scripts, including:
-  - `phpcs`: For checking coding standards.
-  - `phpmd`: For code analysis.
-  - `phpstan`: For static analysis.
-  - `rector`: For automated code upgrades and refactoring.
-  - `tests`: Run tests found within the `tests` directory.
-  
-- **Automated Testing**: A GitHub Actions workflow is set up to automatically run tests whenever you push to the repository, ensuring your code remains reliable and up to standards.
-
-- **Editable Code**: You can modify the code in the `src` directory and add your own unit tests in the `tests` directory to extend functionality.
-
-- **GitHub Template**: The repository includes a template for pull requests that you can customise to fit your project needs.
-
-## Getting Started
-
-1. **Clone the Repository**:
-   ```
-   git clone git@github.com:stuarttodd-dev/package-sample.git
-   ```
-
-2. **Navigate to repo**:
-   ```
-   cd package-sample
-   ```
-
-3. **Set Up Docker**:
-   Ensure Docker Desktop is installed and running. Build Docker container:
-   ```
-   docker compose build
-   ```
-
-4. **Spin up Docker Container**:
-   Run the Docker container:
-   ```
-   docker compose up -d
-   ```
-
-5. **Install Dependencies**:
-   Inside your Docker container, install the project dependencies using Composer:
-   ```
-   docker exec php-composer-package composer install
-   ```
-
-6. **Run the Standards Check**:
-   Execute the following command to check coding standards and static analysis:
-   ```
-   docker exec php-composer-package composer standards:check
-   ```
-
- 7. **Run Tests**:
-   Execute the following command to run tests:
-   ```
-   docker exec php-composer-package composer tests
-   ```
-
-## Sharing Your Package
-
-To make your package publicly accessible, you can either add it to **Packagist** for installation via Composer or adjust your composer.json file to include the VCS URL:
-
-### Option 1. Add to Packagist
-
-Submit your package to [Packagist.org](https://packagist.org).
-
-### Option 2. Add VCS Line in Composer
-
-Adjust your composer.json file to include the VCS URL, e.g to include this:
+```bash
+composer require captur/events
 ```
-{
-    "repositories": [
-        {
-            "type": "vcs",
-            "url": "https://github.com/stuarttodd-dev/package-sample.git" 
-        }
-    ]
+
+Requires PHP 8.3+.
+
+## Authentication
+
+Create a project in the dashboard and copy a **test** (`evt_test_…`) or **live** (`evt_live_…`) API key.
+
+```bash
+export CAPTUR_API_KEY=evt_test_...
+```
+
+Every request sends `Authorization: Bearer <key>`.
+
+## Quick start
+
+```php
+use Captur\Client;
+
+$client = new Client(apiKey: getenv('CAPTUR_API_KEY'));
+
+// 1. Register an event type (once per project)
+$client->eventTypes()->create([
+    'name' => 'vehicle.entered',
+    'description' => 'Vehicle entered a car park',
+]);
+
+// 2. Ingest an event
+$event = $client->events()->create([
+    'type' => 'vehicle.entered',
+    'stream' => 'vehicle:AB12XYZ',
+    'data' => [
+        'car_park_id' => 'teeside-central',
+        'barrier' => 'north',
+    ],
+]);
+
+echo $event['id'];
+```
+
+Optional client options:
+
+```php
+$client = new Client(
+    apiKey: getenv('CAPTUR_API_KEY'),
+    baseUrl: 'https://captur.events', // default host
+    version: 'v1',                    // default API version
+);
+```
+
+## Events
+
+### Single ingest
+
+```php
+$event = $client->events()->create([
+    'type' => 'vehicle.entered',
+    'stream' => 'vehicle:AB12XYZ',
+    'occurred_at' => '2026-08-01T08:45:00Z',
+    'idempotency_key' => 'entry-AB12XYZ-2026-08-01T08:45',
+    'data' => ['car_park_id' => 'teeside-central'],
+]);
+```
+
+### Batch ingest
+
+`POST` a JSON array (max 500). Response shape: `{ "events": [ … ] }`.
+
+```php
+$result = $client->events()->createMany([
+    ['type' => 'vehicle.entered', 'stream' => 'vehicle:AB12XYZ', 'data' => []],
+    ['type' => 'vehicle.exited', 'stream' => 'vehicle:AB12XYZ', 'data' => []],
+]);
+```
+
+### List, get, delete
+
+```php
+$client->events()->list([
+    'type' => 'vehicle.entered',
+    'stream' => 'vehicle:AB12XYZ',
+    'from' => '2026-08-01T00:00:00Z',
+    'to' => '2026-08-02T00:00:00Z',
+    'limit' => 50,
+]);
+
+$client->events()->get('01KYY7S1ZGJ1DF8XG4X1RFHQ1S');
+$client->events()->delete('01KYY7S1ZGJ1DF8XG4X1RFHQ1S');
+$client->events()->deleteMany(['01A…', '01B…']);
+```
+
+## Event types
+
+```php
+$client->eventTypes()->list();
+$client->eventTypes()->get('vehicle.entered');
+$client->eventTypes()->update('vehicle.entered', [
+    'description' => 'Updated description',
+]);
+$client->eventTypes()->delete('vehicle.entered');
+```
+
+## Streams
+
+```php
+$client->streams()->get('vehicle:AB12XYZ');
+$client->streams()->delete('vehicle:AB12XYZ');
+```
+
+## Session reports
+
+```php
+$client->reports()->sessions([
+    'start_type' => 'session.started',
+    'end_type' => 'session.ended',
+    'from' => '2026-08-01T00:00:00Z',
+    'to' => '2026-08-02T00:00:00Z',
+]);
+```
+
+## Webhooks, alerts, projections
+
+```php
+$client->webhooks()->create([
+    'url' => 'https://example.com/hooks/captur',
+    'event_types' => ['vehicle.entered'],
+]);
+
+$client->alerts()->list();
+$client->projections()->list();
+```
+
+Test inbox helpers: `testInbox()`, `upsertTestInbox()`, `deleteTestInbox()`, `sendTestInboxSample()`.
+
+## Verify webhook signatures
+
+captur signs deliveries with HMAC-SHA256 over the **exact raw body** (`X-Captur-Signature`).
+
+```php
+use Captur\Webhook;
+
+$payload = $request->getContent(); // raw body — required
+$signature = $request->header('X-Captur-Signature');
+$secret = getenv('CAPTUR_WEBHOOK_SECRET');
+
+if (! Webhook::verify($payload, $signature, $secret)) {
+    http_response_code(401);
+    exit('Invalid signature');
+}
+
+$event = json_decode($payload, true, flags: JSON_THROW_ON_ERROR);
+```
+
+## Errors
+
+Non-2xx responses throw typed exceptions under `Captur\Exceptions\`:
+
+| Status | Exception |
+|--------|-----------|
+| 401 | `AuthenticationException` |
+| 403 | `AuthorizationException` |
+| 404 | `NotFoundException` |
+| 409 | `ConflictException` |
+| 422 | `ValidationException` |
+| 429 | `RateLimitException` |
+| other | `ApiException` |
+
+```php
+use Captur\Exceptions\CapturException;
+
+try {
+    $client->events()->create([/* … */]);
+} catch (CapturException $e) {
+    echo $e->getMessage(); // human message
+    echo $e->code();       // e.g. invalid_api_key
+    echo $e->type();       // e.g. authentication_error
+    echo $e->status();     // HTTP status
 }
 ```
 
-## Tagging Your Releases
+## Development
 
-To create a new release for your package, you can tag your repository using the following commands:
-
-1. Create a new tag:
-   ```
-   git tag -a v1.0.0 -m "Release version 1.0.0"
-   ```
-3. Push the tag to GitHub:
-   ```
-   git push origin v1.0.0
-   ```
-
-## Usage Examples
-
-Once you've pulled down the package (either by adjusing your composer.json with a VCS path or adding it to packagist), it will be stored in your `vendor` folder for local access. 
-
-Here’s how you can use the `Greeter` class in your PHP project (but obviously it'd be whatever you've coded into your ``src`` directory:
-
-```
-use HalfShellStudios\PackageSample\Greeter;
-
-$greeter = new Greeter();
-echo $greeter->sayHello();   // Outputs: Well, hello there!
-echo $greeter->sayGoodbye(); // Outputs: Errr... Goodbye!
-echo $greeter->greet();      // Outputs: Well, hello there! Errr... Goodbye!
+```bash
+composer install
+composer tests
+composer test:coverage   # requires pcov or xdebug; enforces 100%
+composer standards:check
 ```
 
-Thats it!
-   
-## Conclusion
+Docker:
 
-This repository serves as a foundation for creating a PHP package, making it easier for you to develop, test, and maintain your projects. Feel free to modify the code and templates to suit your needs!
+```bash
+docker compose build
+docker compose up -d
+docker exec php-composer-package composer install
+docker exec php-composer-package composer tests
+```
 
-If you have any questions or suggestions, feel free to open an issue in this repository.
+CI runs on push/PR to `main`: standards check plus tests with a 100% coverage gate.
 
-Happy coding!
+## Links
+
+- [Product docs](https://captur.events/docs/introduction)
+- [Send your first event](https://captur.events/docs/send-your-first-event)
+- [Verify signatures](https://captur.events/docs/verify-signatures)
+- [OpenAPI JSON](https://captur.events/developers/openapi.json)
